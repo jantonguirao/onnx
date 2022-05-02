@@ -20918,6 +20918,8 @@ This version of the operator has been available since version 17 of the default 
 <dl>
 <dt><tt>antialias</tt> : int (default is 0)</dt>
 <dd>If set to 1, "linear" and "cubic" interpolation modes will use an antialiasing filter when downscaling. Antialiasing is achieved by stretching the resampling filter by a factor max(1, 1 / scale), which means that when downsampling, more input pixels contribute to an output pixel.</dd>
+<dt><tt>axes</tt> : list of ints</dt>
+<dd>If provided, it specifies a subset of axes that roi, scales and sizes refer to. If not provided, all axes are assumed [0, 1, ..., r-1], where r = rank(data). Non-specified dimensions are interpreted as non-resizable. Negative value means counting dimensions from the back. Accepted range is [-r, r-1], where r = rank(data). Behavior is undefined if an axis is repeated.</dd>
 <dt><tt>coordinate_transformation_mode</tt> : string (default is half_pixel)</dt>
 <dd>
 This attribute describes how to transform the coordinate in the resized tensor to the coordinate in the original tensor. <br/>
@@ -20945,6 +20947,33 @@ x_original = length_resized > 1 ? start_x * (length_original - 1) + x_resized * 
 <dd>If set to 1, the weight of sampling locations outside the tensor will be set to 0 and the weight will be renormalized so that their sum is 1.0. The default value is 0.</dd>
 <dt><tt>extrapolation_value</tt> : float (default is 0.0)</dt>
 <dd>When coordinate_transformation_mode is "tf_crop_and_resize" and x_original is outside the range [0, length_original - 1], this value is used as the corresponding output value. Default is 0.0f.</dd>
+<dt><tt>keep_aspect_ratio_policy</tt> : string (default is stretch)</dt>
+<dd>
+This attribute describes how to interpret the 'sizes' input with regard to keeping the original aspect ratio of the input.
+
+Assuming <br/>
+axes either explicitly provided or assumed to be [0, 1, ..., r-1], with r = rank(data)
+i in the range [0, N-1), with N = len(sizes),
+d = axes[i],
+<br/>
+
+If keep_aspect_ratio_policy is \"stretch\", the original aspect ratio is disregarded, and the input is resized to the specified size. <br/>
+out_size[d] = sizes[i]
+<br/>
+
+If keep_aspect_ratio_policy is \"not_larger\", the sizes are adjusted so that no extent of the output is larger than the specified size, while keeping the original aspect ratio. <br/>
+scale = Min(sizes[i] / in_size[d]),
+out_size[i] = round_int(scale * in_size[i])  if i in 'axes',
+out_size[i] = in_size[i]                     otherwise,
+<br/>
+
+If keep_aspect_ratio_policy is \"not_smaller\", the sizes are adjusted so that no extent of the output is smaller than the specified size, while keeping the original aspect ratio. <br/>
+scale = Max(sizes[i] / in_size[d]),
+out_size[i] = round_int(scale * in_size[i])  if i in 'axes',
+out_size[i] = in_size[i]                     otherwise,
+<br/>
+
+Note: 'round_int' computes the nearest integer value, rounding halfway cases up.</dd>
 <dt><tt>mode</tt> : string (default is nearest)</dt>
 <dd>Three interpolation modes: nearest (default), linear and cubic. The "linear" mode includes linear interpolation for 1D tensor and N-linear interpolation for N-D tensor (for example, bilinear interpolation for 2D tensor). The "cubic" mode includes cubic interpolation for 1D tensor and N-cubic interpolation for N-D tensor (for example, bicubic interpolation for 2D tensor).</dd>
 <dt><tt>nearest_mode</tt> : string (default is round_prefer_floor)</dt>
@@ -20957,11 +20986,11 @@ x_original = length_resized > 1 ? start_x * (length_original - 1) + x_resized * 
 <dt><tt>X</tt> (differentiable) : T1</dt>
 <dd>N-D tensor</dd>
 <dt><tt>roi</tt> (optional, non-differentiable) : T2</dt>
-<dd>1-D tensor given as [start1, ..., startN, end1, ..., endN], where N is the rank of X. The RoIs' coordinates are normalized in the coordinate system of the input image. It only takes effect when coordinate_transformation_mode is "tf_crop_and_resize"</dd>
+<dd>1-D tensor given as [start1, ..., startN, end1, ..., endN], where N is the rank of X or the length of 'axes', if provided. The RoIs' coordinates are normalized in the coordinate system of the input image. It only takes effect when coordinate_transformation_mode is "tf_crop_and_resize"</dd>
 <dt><tt>scales</tt> (optional, non-differentiable) : tensor(float)</dt>
-<dd>The scale array along each dimension. It takes value greater than 0. If it's less than 1, it's sampling down, otherwise, it's upsampling. The number of elements of 'scales' should be the same as the rank of input 'X'. One of 'scales' and 'sizes' MUST be specified and it is an error if both are specified. If 'sizes' is needed, the user can use an empty string as the name of 'scales' in this operator's input list.</dd>
+<dd>The scale array along each dimension. It takes value greater than 0. If it's less than 1, it's sampling down, otherwise, it's upsampling. The number of elements of 'scales' should be the same as the rank of input 'X' or the length of 'axes', if provided. One of 'scales' and 'sizes' MUST be specified and it is an error if both are specified. If 'sizes' is needed, the user can use an empty string as the name of 'scales' in this operator's input list.</dd>
 <dt><tt>sizes</tt> (optional, non-differentiable) : tensor(int64)</dt>
-<dd>The size of the output tensor. The number of elements of 'sizes' should be the same as the rank of input 'X'. Only one of 'scales' and 'sizes' can be specified.</dd>
+<dd>Target size of the output tensor. Its interpretation depends on the 'keep_aspect_ratio_policy' value.The number of elements of 'sizes' should be the same as the rank of input 'X', or the length of 'axes', if provided. Only one of 'scales' and 'sizes' can be specified. </dd>
 </dl>
 
 #### Outputs

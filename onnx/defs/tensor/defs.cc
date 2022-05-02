@@ -2449,6 +2449,33 @@ x_original = x_resized / scale, <br/>
 if coordinate_transformation_mode is "tf_crop_and_resize", <br/>
 x_original = length_resized > 1 ? start_x * (length_original - 1) + x_resized * (end_x - start_x) * (length_original - 1) / (length_resized - 1) : 0.5 * (start_x + end_x) * (length_original - 1).)DOC";
 
+static const char* Resize_attr_keep_aspect_ratio_policy_doc = R"DOC(
+This attribute describes how to interpret the 'sizes' input with regard to keeping the original aspect ratio of the input.
+
+Assuming <br/>
+axes either explicitly provided or assumed to be [0, 1, ..., r-1], with r = rank(data)
+i in the range [0, N-1), with N = len(sizes),
+d = axes[i],
+<br/>
+
+If keep_aspect_ratio_policy is \"stretch\", the original aspect ratio is disregarded, and the input is resized to the specified size. <br/>
+out_size[d] = sizes[i]
+<br/>
+
+If keep_aspect_ratio_policy is \"not_larger\", the sizes are adjusted so that no extent of the output is larger than the specified size, while keeping the original aspect ratio. <br/>
+scale = Min(sizes[i] / in_size[d]),
+out_size[i] = round_int(scale * in_size[i])  if i in 'axes',
+out_size[i] = in_size[i]                     otherwise,
+<br/>
+
+If keep_aspect_ratio_policy is \"not_smaller\", the sizes are adjusted so that no extent of the output is smaller than the specified size, while keeping the original aspect ratio. <br/>
+scale = Max(sizes[i] / in_size[d]),
+out_size[i] = round_int(scale * in_size[i])  if i in 'axes',
+out_size[i] = in_size[i]                     otherwise,
+<br/>
+
+Note: 'round_int' computes the nearest integer value, rounding halfway cases up.)DOC";
+
 ONNX_OPERATOR_SET_SCHEMA(
     Resize,
     17,
@@ -2494,6 +2521,20 @@ ONNX_OPERATOR_SET_SCHEMA(
             "Antialiasing is achieved by stretching the resampling filter by a factor max(1, 1 / scale), which means that when downsampling, more input pixels contribute to an output pixel.",
             AttributeProto::INT,
             static_cast<int64_t>(0))
+        .Attr(
+            "axes",
+            "If provided, it specifies a subset of axes that roi, scales and sizes refer to. "
+            "If not provided, all axes are assumed [0, 1, ..., r-1], where r = rank(data). "
+            "Non-specified dimensions are interpreted as non-resizable. "
+            "Negative value means counting dimensions from the back. Accepted range is [-r, r-1], where r = rank(data). "
+            "Behavior is undefined if an axis is repeated.",
+            AttributeProto::INTS,
+            false)
+        .Attr(
+            "keep_aspect_ratio_policy",
+            Resize_attr_keep_aspect_ratio_policy_doc,
+            AttributeProto::STRING,
+            std::string("stretch"))
         .Input(
             0,
             "X",
@@ -2506,7 +2547,8 @@ ONNX_OPERATOR_SET_SCHEMA(
         .Input(
             1,
             "roi",
-            "1-D tensor given as [start1, ..., startN, end1, ..., endN], where N is the rank of X. The RoIs' coordinates are normalized in the coordinate system of the input image. It only takes effect when coordinate_transformation_mode is \"tf_crop_and_resize\"",
+            "1-D tensor given as [start1, ..., startN, end1, ..., endN], where N is the rank of X or the length of 'axes', if provided. "
+            "The RoIs' coordinates are normalized in the coordinate system of the input image. It only takes effect when coordinate_transformation_mode is \"tf_crop_and_resize\"",
             "T2",
             OpSchema::Optional,
             true,
@@ -2517,7 +2559,8 @@ ONNX_OPERATOR_SET_SCHEMA(
             "scales",
             "The scale array along each dimension. It takes value greater than 0. If it's less than 1,"
             " it's sampling down, otherwise, it's upsampling. The number of elements of 'scales' should"
-            " be the same as the rank of input 'X'. One of 'scales' and 'sizes' MUST be specified and it is an error if both are specified. If 'sizes' is needed, the user can use an empty string as the name of 'scales' in this operator's input list.",
+            " be the same as the rank of input 'X' or the length of 'axes', if provided. "
+            "One of 'scales' and 'sizes' MUST be specified and it is an error if both are specified. If 'sizes' is needed, the user can use an empty string as the name of 'scales' in this operator's input list.",
             "tensor(float)",
             OpSchema::Optional,
             true,
@@ -2526,8 +2569,9 @@ ONNX_OPERATOR_SET_SCHEMA(
         .Input(
             3,
             "sizes",
-            "The size of the output tensor. The number of elements of 'sizes' should be the same as the"
-            " rank of input 'X'. Only one of 'scales' and 'sizes' can be specified.",
+            "Target size of the output tensor. Its interpretation depends on the 'keep_aspect_ratio_policy' value."
+            "The number of elements of 'sizes' should be the same as the"
+            " rank of input 'X', or the length of 'axes', if provided. Only one of 'scales' and 'sizes' can be specified. ",
             "tensor(int64)",
             OpSchema::Optional,
             true,
